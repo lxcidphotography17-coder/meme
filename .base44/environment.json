@@ -1,0 +1,17 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "TG_TOKEN",
+      "description": "Optional Telegram bot token for trade alerts. Get it from @BotFather on Telegram. Not required — the desk runs fine without it.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "TG_CHAT_ID",
+      "description": "Optional Telegram chat ID to receive alerts. Get it by messaging your bot or using @userinfobot. Not required.",
+      "requiredAtBoot": false
+    }
+  ]
+}

@@ -72,7 +72,7 @@ def scan():
     leads = []
     for m in mints:
         d = get(f"{DEX}/latest/dex/tokens/{m}")
-        pairs = [p for p in (d or {}).get("pairs", []) if p.get("chainId") == "solana"]
+        pairs = [p for p in ((d or {}).get("pairs") or []) if p.get("chainId") == "solana"]
         if not pairs:
             continue
         p = max(pairs, key=lambda x: (x.get("liquidity") or {}).get("usd", 0))
