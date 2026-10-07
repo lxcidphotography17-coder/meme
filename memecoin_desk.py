@@ -215,11 +215,40 @@ def stats():
     return (f"trades {len(pnls)} | win rate {wr*100:.0f}% | avg win ${aw:.2f} | avg loss ${al:.2f} | "
             f"EXPECTANCY ${exp:.2f}/trade | max drawdown ${dd:.2f} | bankroll ${C.bankroll:.2f}")
 
+
+def daily_summary():
+    """Comprehensive daily performance summary sent to Telegram once per day."""
+    start_of_day = time.mktime(time.localtime()[:3] + (0,) * 6)
+    today = DB.execute(
+        "SELECT pnl, symbol, reason FROM trades WHERE closed >= ?", (start_of_day,)
+    ).fetchall()
+    today_pnl = sum(r[0] for r in today)
+    today_count = len(today)
+    wins_today = len([r for r in today if r[0] > 0])
+    date_str = time.strftime("%Y-%m-%d", time.localtime())
+    lines = [
+        f"📊 DAILY SUMMARY — {date_str}",
+        "───────────────────",
+        f"💰 Bankroll: ${C.bankroll:.2f}",
+        f"📈 Today: {today_count} trades, PnL ${today_pnl:.2f}",
+    ]
+    if today_count:
+        lines.append(f"✅ Wins: {wins_today}/{today_count}")
+        best = max(today, key=lambda r: r[0])
+        worst = min(today, key=lambda r: r[0])
+        lines.append(f"🚀 Best: {best[1]} +${best[0]:.2f} ({best[2]})")
+        lines.append(f"💀 Worst: {worst[1]} ${worst[0]:.2f} ({worst[2]})")
+    lines.append(f"📊 All-time: {stats()}")
+    lines.append(f"🔓 Open positions: {len(open_pos)}")
+    lines.append("───────────────────")
+    return "\n".join(lines)
+
+
 seen = set()
 
 def main():
     notify("Desk online (PAPER)" if C.paper else "Desk online (LIVE-STAGED)")
-    last_scan = last_report = 0
+    last_scan = last_report = last_daily = 0
     start_bank = C.bankroll
     while True:
         halted = day_pnl() <= -C.daily_loss_halt * start_bank
@@ -243,6 +272,9 @@ def main():
         if time.time() - last_report > 6 * 3600:
             last_report = time.time()
             notify("DESK REPORT: " + stats() + f" | open {len(open_pos)}")
+        if time.time() - last_daily > 24 * 3600:
+            last_daily = time.time()
+            notify(daily_summary())
         time.sleep(C.pos_check_every)
 
 if __name__ == "__main__":
