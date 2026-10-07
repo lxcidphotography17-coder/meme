@@ -9,6 +9,8 @@ services:
     environment:
       - BASE44_PREVIEW_MODE
       - PYTHONUNBUFFERED=1
+    env_file:
+      - /run/base44/app.env
     command: ["sh", "-ec", "pip install --no-cache-dir -r requirements.txt && sh /app/start.sh"]
     restart: on-failure
     healthcheck:
