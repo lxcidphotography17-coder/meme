@@ -57,6 +57,11 @@ def get(url, **kw):
 
 def notify(msg):
     print(msg)
+    try:
+        with open("alerts.jsonl", "a") as f:
+            f.write(json.dumps({"ts": time.time(), "msg": msg}) + "\n")
+    except Exception:
+        pass
     t, c = os.getenv("TG_TOKEN"), os.getenv("TG_CHAT_ID")
     if t and c:
         try:
@@ -123,6 +128,14 @@ def confirmations(mint, p):
 # ---------------- SNIPER: execution (paper by default) ----------------
 open_pos = {}
 
+def save_open_pos():
+    """Persist open positions to JSON so the dashboard can display them."""
+    try:
+        with open("open_positions.json", "w") as f:
+            json.dump(open_pos, f)
+    except Exception:
+        pass
+
 def day_pnl():
     start = time.mktime(time.localtime()[:3] + (0,) * 6)
     r = DB.execute("SELECT COALESCE(SUM(pnl),0) FROM trades WHERE closed>=?", (start,)).fetchone()
@@ -140,11 +153,13 @@ def execute(mint, p):
                                   "Use Jupiter API with a throwaway wallet only after paper results.")
     open_pos[mint] = dict(symbol=p["baseToken"]["symbol"], entry=fill, size=size,
                           peak=fill, opened=time.time(), half_sold=False, realized=0.0)
+    save_open_pos()
     notify(f"EXECUTED(paper) {p['baseToken']['symbol']} {mint}\nentry {fill:.8g} size ${size:.2f}")
 
 # ---------------- EXIT: position manager ----------------
 def close(mint, price, reason):
     pos = open_pos.pop(mint)
+    save_open_pos()
     remaining = 0.5 if pos["half_sold"] else 1.0
     exit_px = price * (1 - C.slippage)
     pnl = pos["realized"] + pos["size"] * remaining * (exit_px / pos["entry"] - 1)
@@ -164,7 +179,9 @@ def manage_positions():
         price = float(p["priceUsd"])
         pos = open_pos[mint]
         pos["peak"] = max(pos["peak"], price)
+        pos["last_price"] = price
         gain = price / pos["entry"] - 1
+        pos["gain"] = gain
         liq = (p.get("liquidity") or {}).get("usd", 0)
         if liq < C.min_liq * 0.4:
             close(mint, price, "RUG/liquidity pulled"); continue   # pre-approved fast exit
@@ -179,6 +196,7 @@ def manage_positions():
             close(mint, price, "trailing stop"); continue
         if time.time() - pos["opened"] > C.max_hold_h * 3600:
             close(mint, price, "time stop")
+    save_open_pos()
 
 # ---------------- HEAD OF DESK: orchestration + reporting ----------------
 def stats():
